@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in // Warranty Ops Command Center</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  :root{
+    --bg:#10140F; --panel:#171C15; --panel-raised:#1D231C; --border:#2A322A;
+    --text:#E9EEE4; --text-dim:#8B9682; --good:#4EC08F; --bad:#E2585B;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .login-card{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--border);
+    border-radius:12px;padding:32px 28px;}
+  .brand{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em;
+    font-size:22px;font-weight:700;}
+  .brand span{color:var(--good);}
+  .sub{font-size:12px;color:var(--text-dim);margin:6px 0 24px;}
+  label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:6px;}
+  input{width:100%;background:var(--panel-raised);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:10px 12px;font-size:14px;font-family:'IBM Plex Mono';margin-bottom:14px;}
+  input:focus{outline:none;border-color:var(--good);}
+  button{width:100%;background:var(--good);color:#0E140F;border:none;border-radius:6px;
+    padding:11px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter';}
+  button:hover{opacity:.9;}
+  button:disabled{opacity:.6;cursor:not-allowed;}
+  .err{color:var(--bad);font-size:12px;margin-top:10px;min-height:14px;}
+  .hint{font-size:10.5px;color:var(--text-dim);margin-top:18px;text-align:center;line-height:1.5;}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--good);display:inline-block;box-shadow:0 0 6px var(--good);margin-right:6px;}
+</style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="brand">Warranty ops <span>// command center</span></div>
+    <p class="sub"><span class="dot"></span>Service request &amp; repair lifecycle analytics platform</p>
+    <form id="loginForm">
+      <label for="pw">Password</label>
+      <input type="password" id="pw" autocomplete="current-password" placeholder="Enter access password" required />
+      <button type="submit" id="submitBtn">Sign in</button>
+      <div class="err" id="err"></div>
+    </form>
+    <div class="hint">Portfolio demo — access is password protected.<br>All data shown is illustrative, not real customer data.</div>
+  </div>
+
+<script>
+  const form = document.getElementById('loginForm');
+  const err = document.getElementById('err');
+  const btn = document.getElementById('submitBtn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    const password = document.getElementById('pw').value;
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        window.location.href = '/dashboard.html';
+      } else {
+        err.textContent = data.error || 'Incorrect password. Try again.';
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+      }
+    } catch (e2) {
+      err.textContent = 'Could not reach the server. Try again.';
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+    }
+  });
+</script>
+</body>
+</html>
