@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warranty Ops // Command Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root{
+    --bg:#10140F; --panel:#171C15; --panel-raised:#1D231C; --border:#2A322A;
+    --text:#E9EEE4; --text-dim:#8B9682;
+    --good:#4EC08F; --warn:#E3A23C; --bad:#E2585B; --info:#6EA8DC;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  #app{max-width:1280px;margin:0 auto;padding:20px;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .display{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em;}
+
+  /* header */
+  .cc-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;
+    padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:18px;}
+  .cc-title{font-size:26px;font-weight:700;line-height:1;}
+  .cc-title span{color:var(--good);}
+  .cc-subtitle{font-size:12px;color:var(--text-dim);margin-top:6px;font-family:'Inter';text-transform:none;letter-spacing:0;}
+  .cc-status{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--panel-raised);border:1px solid var(--border);border-radius:6px;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 6px var(--good);display:inline-block;}
+  .cc-status-text{font-size:11px;color:var(--text-dim);}
+  .cc-status-text b{color:var(--text);font-family:'IBM Plex Mono';}
+  .header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .logout-btn{background:var(--panel-raised);border:1px solid var(--border);color:var(--text-dim);
+    font-size:11px;padding:7px 12px;border-radius:6px;cursor:pointer;font-family:'Inter';}
+  .logout-btn:hover{color:var(--bad);border-color:var(--bad);}
+  .auth-gate{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;
+    color:var(--text-dim);font-family:'IBM Plex Mono';font-size:12px;}
+
+  .filters{display:flex;gap:8px;align-items:center;margin-bottom:20px;flex-wrap:wrap;}
+  .filters label{font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:5px;}
+  select{background:var(--panel-raised);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:12px;font-family:'Inter';}
+  .scope-note{font-size:11px;color:var(--text-dim);}
+  .scope-note b{color:var(--text);font-family:'IBM Plex Mono';font-weight:500;}
+
+  /* conveyor */
+  .conveyor{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:22px 18px 16px;margin-bottom:20px;overflow-x:auto;}
+  .conveyor-label{font-size:11px;color:var(--text-dim);margin-bottom:14px;display:flex;align-items:center;gap:6px;}
+  .conveyor-track{display:flex;align-items:stretch;min-width:760px;}
+  .stage-node{flex:1;text-align:center;position:relative;padding:0 4px;}
+  .stage-icon-wrap{width:40px;height:40px;border-radius:50%;background:var(--panel-raised);border:1px solid var(--good);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 8px;position:relative;z-index:1;}
+  .stage-vol{font-family:'IBM Plex Mono';font-size:18px;font-weight:500;}
+  .stage-name{font-size:10.5px;color:var(--text-dim);margin-top:3px;text-transform:uppercase;letter-spacing:.03em;}
+  .stage-connector{position:absolute;top:20px;left:-50%;width:100%;height:1px;
+    background:repeating-linear-gradient(90deg,var(--good) 0 6px,transparent 6px 11px);z-index:0;}
+  .stage-drop{font-size:9.5px;color:var(--bad);font-family:'IBM Plex Mono';margin-top:2px;}
+
+  /* kpi */
+  .kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px;}
+  .kpi-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+  .kpi-top{display:flex;justify-content:space-between;align-items:center;}
+  .kpi-label{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.03em;}
+  .kpi-value{font-family:'IBM Plex Mono';font-size:22px;margin-top:6px;}
+  .kpi-sub{font-size:10.5px;color:var(--text-dim);display:flex;align-items:center;gap:4px;margin-top:4px;}
+
+  /* tabs */
+  .tabbar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap;}
+  .tab-btn{background:none;border:none;color:var(--text-dim);font-size:12.5px;padding:8px 14px;cursor:pointer;
+    border-bottom:2px solid transparent;font-family:'Inter';font-weight:500;}
+  .tab-btn.active{color:var(--good);border-bottom-color:var(--good);}
+  .tab-btn:hover:not(.active){color:var(--text);}
+
+  /* panels */
+  .grid-2{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .panel-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:10px;}
+  .panel-eyebrow{font-size:9.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;font-family:'IBM Plex Mono';}
+  .panel-title{font-size:14px;font-weight:600;margin-top:2px;}
+  .panel-body{padding:14px;}
+  .panel-note{font-size:10.5px;color:var(--text-dim);}
+
+  table.data{width:100%;border-collapse:collapse;font-size:12px;}
+  table.data th{text-align:left;color:var(--text-dim);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.02em;padding:5px 8px;border-bottom:1px solid var(--border);}
+  table.data td{padding:7px 8px;border-bottom:1px solid var(--border);font-family:'IBM Plex Mono';font-size:11.5px;}
+  table.data tr:last-child td{border-bottom:none;}
+
+  .chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border:1px solid;border-radius:20px;font-family:'IBM Plex Mono';}
+  .legend-row{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text-dim);margin-top:10px;}
+  .legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:5px;}
+  .dq-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px;}
+  .dq-row:last-child{border-bottom:none;}
+  .footnote{font-size:10.5px;color:var(--text-dim);margin-top:16px;display:flex;align-items:center;gap:6px;}
+
+  /* architecture */
+  .arch-flow{display:flex;flex-direction:column;gap:0;}
+  .arch-step{display:flex;gap:14px;padding:12px 4px;position:relative;}
+  .arch-step .rail{display:flex;flex-direction:column;align-items:center;width:34px;flex-shrink:0;}
+  .arch-dot{width:12px;height:12px;border-radius:50%;background:var(--panel-raised);border:2px solid var(--good);flex-shrink:0;z-index:1;}
+  .arch-line{flex:1;width:1px;background:var(--border);margin:2px 0;min-height:16px;}
+  .arch-step:last-child .arch-line{display:none;}
+  .arch-body{padding-bottom:6px;}
+  .arch-layer{font-family:'IBM Plex Mono';font-size:12.5px;color:var(--good);font-weight:500;}
+  .arch-desc{font-size:12px;color:var(--text-dim);margin-top:3px;line-height:1.5;}
+  .arch-tools{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;}
+  .tool-tag{font-size:9.5px;font-family:'IBM Plex Mono';color:var(--info);border:1px solid var(--border);background:var(--panel-raised);padding:2px 6px;border-radius:4px;}
+
+  /* lineage */
+  .lineage-select{margin-bottom:14px;}
+  .lineage-cols{display:flex;gap:0;overflow-x:auto;padding-bottom:6px;}
+  .lineage-col{flex:1;min-width:150px;padding:0 8px;position:relative;}
+  .lineage-col-label{font-size:9.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;font-family:'IBM Plex Mono';margin-bottom:8px;text-align:center;}
+  .lineage-node{background:var(--panel-raised);border:1px solid var(--border);border-radius:6px;padding:8px 9px;margin-bottom:10px;font-size:11px;text-align:center;position:relative;}
+  .lineage-node.hi{border-color:var(--good);color:var(--good);}
+  .lineage-arrow{position:absolute;top:50%;right:-14px;transform:translateY(-50%);color:var(--text-dim);font-size:13px;z-index:2;}
+  .lineage-col:last-child .lineage-arrow{display:none;}
+
+  /* dq score gauge */
+  .dq-score-wrap{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+  .gauge-box{position:relative;width:150px;height:150px;flex-shrink:0;}
+  .gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .gauge-score{font-family:'IBM Plex Mono';font-size:30px;font-weight:500;}
+  .gauge-label{font-size:9.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;}
+  .dim-bars{flex:1;min-width:220px;}
+  .dim-row{margin-bottom:10px;}
+  .dim-top{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;}
+  .dim-top span:first-child{color:var(--text-dim);}
+  .dim-top span:last-child{font-family:'IBM Plex Mono';}
+  .bar-track{height:6px;background:var(--panel-raised);border-radius:4px;overflow:hidden;border:1px solid var(--border);}
+  .bar-fill{height:100%;border-radius:4px;}
+
+  /* warehouse metrics */
+  .wh-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+
+  @media (max-width:900px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .grid-2{grid-template-columns:1fr;}
+    .wh-grid{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+<div id="authGate" class="auth-gate">Checking session…</div>
+<div id="app"></div>
+
+<script>
+/* ============================================================
+   Deterministic PRNG
+============================================================ */
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(4471);
+const R = (min,max) => min + rng()*(max-min);
+const RI = (min,max) => Math.round(R(min,max));
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+const pct = (n,d=1) => n.toFixed(d) + '%';
+
+/* ============================================================
+   Reference domains (matches repo schema)
+============================================================ */
+const CHANNELS = ['Voice','Chat','Facebook','Social Media'];
+const REGIONS  = ['United States','Canada','United Kingdom','India'];
+const ISSUES   = ['HARDWARE_FAILURE','NO_POWER','WINDOWS_ISSUE','DISPLAY_ISSUE','BATTERY_ISSUE','NO_BOOT',
+                   'NETWORK_ISSUE','KEYBOARD_TOUCHPAD_ISSUE','NO_VIDEO','NO_POST','OSRI','OTHER'];
+const WARRANTY_TYPES = ['1 Year Mail-In','1 Year Onsite','2 Year Onsite','3 Year Onsite'];
+const PRIORITIES = ['P1 - Critical','P2 - High','P3 - Medium','P4 - Low'];
+const STAGES = [
+  {key:'contact',label:'Customer contact'},
+  {key:'troubleshoot',label:'Troubleshooting'},
+  {key:'warranty',label:'Warranty validation'},
+  {key:'request',label:'Service request'},
+  {key:'repair',label:'Repair fulfillment'},
+  {key:'resolution',label:'Case resolution'},
+  {key:'closure',label:'Case closure'},
+];
+
+/* ============================================================
+   Icons (minimal inline SVG set — no external icon dep)
+============================================================ */
+const ICON = {
+  phone:'<path d="M13.5 2h-3A1.5 1.5 0 0 0 9 3.5v9A1.5 1.5 0 0 0 10.5 14h3a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 13.5 2z"/><path d="M11 11.5h2" stroke-linecap="round"/>',
+  gauge:'<circle cx="8" cy="8" r="6.5"/><path d="M8 8L11 5" stroke-linecap="round"/>',
+  shield:'<path d="M8 1.5l5.5 2v4c0 4-2.3 6.3-5.5 7-3.2-.7-5.5-3-5.5-7v-4z"/>',
+  clock:'<circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5" stroke-linecap="round"/>',
+  wrench:'<path d="M11 2a3.5 3.5 0 0 0-4.6 4.1L2 10.5V13h2.5l4.4-4.4A3.5 3.5 0 0 0 13 3.5z"/>',
+  check:'<circle cx="8" cy="8" r="6.5"/><path d="M5.3 8.2l1.8 1.8 3.6-3.9" stroke-linecap="round" stroke-linejoin="round"/>',
+  alert:'<path d="M8 1.5l7 12h-14z"/><path d="M8 6.5v3" stroke-linecap="round"/><circle cx="8" cy="11.6" r=".4" fill="currentColor" stroke="none"/>',
+  refresh:'<path d="M13 8a5 5 0 1 1-1.6-3.7M13 2v3h-3" stroke-linecap="round" stroke-linejoin="round"/>',
+  db:'<ellipse cx="8" cy="3.5" rx="5.5" ry="2"/><path d="M2.5 3.5V12c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V3.5"/><path d="M2.5 7.8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/>',
+  filter:'<path d="M2 2.5h12l-4.5 6v4l-3 1.5v-5.5z"/>',
+  chevron:'<path d="M6 3l5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/>',
+  x:'<path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/>',
+  layers:'<path d="M8 2l6 3-6 3-6-3z"/><path d="M2 8l6 3 6-3M2 11l6 3 6-3"/>',
+};
+function svg(name,size=15,color='currentColor',fill='none'){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="${fill}" stroke="${color}" stroke-width="1.3">${ICON[name]||''}</svg>`;
+}
+
+/* ============================================================
+   Mock data generation
+============================================================ */
+function buildData(){
+  const matrix = [];
+  REGIONS.forEach(region=>{
+    CHANNELS.forEach(ch=>{
+      const base = RI(180,640);
+      matrix.push({region, channel:ch, volume:base, slaPct:R(78,96), escalationPct:R(3,11), repeatPct:R(5,15), avgRepairDays:R(2.8,7.2)});
+    });
+  });
+  const totalContacts = matrix.reduce((a,r)=>a+r.volume,0);
+  let vol = totalContacts;
+  const dropRates = [0.086,0.108,0.113,0.106,0.052,0.043];
+  const stageVolumes = [vol];
+  dropRates.forEach(d=>{ vol = Math.round(vol*(1-d)); stageVolumes.push(vol); });
+
+  const slaByPriority = PRIORITIES.map((p,i)=>{
+    const target = [4,24,72,120][i];
+    const adherence = [91.2,88.4,84.9,79.3][i] + R(-2,2);
+    return {priority:p, targetHrs:target, adherencePct:Math.min(99,Math.max(60,adherence)), breaches:RI(8,140)};
+  });
+
+  const repairByWarranty = WARRANTY_TYPES.map(w=>({
+    type:w, avgDays: w.includes('Mail-In') ? R(6.5,8.4) : R(2.2,3.6), completionPct:R(85,97)
+  }));
+
+  const activeContacts = Math.round(totalContacts*R(0.6,0.7));
+  const expiredContacts = Math.round(totalContacts*R(0.14,0.2));
+  const noneContacts = totalContacts - activeContacts - expiredContacts;
+  const mailInShare = R(30,42);
+  const warrantyUtilization = {active:activeContacts, expired:expiredContacts, none:noneContacts, mailInPct:mailInShare, onsitePct:100-mailInShare};
+
+  const issueTrends = ISSUES.map(name=>({
+    name, volume:RI(140,980), repeatPct:R(4,22), trend: R(-1,1)>0?'up':'down', trendPct:R(2,18)
+  })).sort((a,b)=>b.volume-a.volume);
+
+  const sourceFiles = ['customers.json','product_assets.json','customer_contacts.json','warranty_entitlements.json','service_requests.json','repair_events.json','case_closures.json'];
+  const loadAudit = sourceFiles.map((f,i)=>({
+    file:f, batch:`BATCH_${String(2200+i).padStart(5,'0')}`, records:RI(1200,9800),
+    loadedAt:`2026-07-30 0${RI(1,6)}:${String(RI(0,59)).padStart(2,'0')} UTC`,
+    status: rng()>0.08 ? 'success' : 'warning'
+  }));
+  const dqChecks = [
+    {name:'Row count validation', dim:'Completeness', status:'pass', score:R(96,100)},
+    {name:'Primary key completeness', dim:'Completeness', status:'pass', score:R(97,100)},
+    {name:'Duplicate record scan', dim:'Uniqueness', status:'pass', score:R(94,99)},
+    {name:'Relationship integrity', dim:'Integrity', status: rng()>0.15?'pass':'warn', score:R(88,98)},
+    {name:'Warranty date validity', dim:'Validity', status:'pass', score:R(95,100)},
+    {name:'Channel value validation', dim:'Validity', status:'pass', score:R(97,100)},
+  ];
+
+  const warehouse = {
+    size:'MEDIUM', creditsToday:R(18,34), creditsMTD:R(340,520),
+    avgQueryMs:RI(180,650), queriesToday:RI(1400,3200),
+    cacheHitPct:R(72,91), storageGB:R(210,480), autoSuspendMin:5,
+    creditTrend: Array.from({length:7},()=>R(14,36)),
+  };
+
+  return {matrix,totalContacts,stageVolumes,slaByPriority,repairByWarranty,warrantyUtilization,issueTrends,loadAudit,dqChecks,warehouse};
+}
+const DATA = buildData();
+
+function filterMatrix(region,channel){
+  return DATA.matrix.filter(r => (region==='All'||r.region===region) && (channel==='All'||r.channel===channel));
+}
+function weightedAvg(rows,key){
+  const total = rows.reduce((a,r)=>a+r.volume,0);
+  if(!total) return 0;
+  return rows.reduce((a,r)=>a+r[key]*r.volume,0)/total;
+}
+
+/* ============================================================
+   Lineage map (inferred from repo's RAW -> STAGING -> INTERMEDIATE -> MARTS naming)
+============================================================ */
+const LINEAGE = {
+  'MART_SERVICE_REQUEST_LIFECYCLE': {
+    intermediate:['INT_CONTACT_SERVICE_LIFECYCLE','INT_CASE_RESOLUTION'],
+    staging:['STG_CUSTOMER_CONTACTS','STG_SERVICE_REQUESTS','STG_CASE_CLOSURES'],
+    raw:['RAW_CUSTOMER_CONTACTS','RAW_SERVICE_REQUESTS','RAW_CASE_CLOSURES'],
+  },
+  'MART_SLA_ADHERENCE': {
+    intermediate:['INT_CONTACT_SERVICE_LIFECYCLE','INT_CASE_RESOLUTION'],
+    staging:['STG_CUSTOMER_CONTACTS','STG_SERVICE_REQUESTS'],
+    raw:['RAW_CUSTOMER_CONTACTS','RAW_SERVICE_REQUESTS'],
+  },
+  'MART_REPAIR_TURNAROUND_PERFORMANCE': {
+    intermediate:['INT_REPAIR_FULFILLMENT'],
+    staging:['STG_REPAIR_EVENTS','STG_SERVICE_REQUESTS'],
+    raw:['RAW_REPAIR_EVENTS','RAW_SERVICE_REQUESTS'],
+  },
+  'MART_WARRANTY_UTILIZATION': {
+    intermediate:['INT_WARRANTY_VALIDATION'],
+    staging:['STG_WARRANTY_ENTITLEMENTS','STG_PRODUCT_ASSETS','STG_CUSTOMERS'],
+    raw:['RAW_WARRANTY_ENTITLEMENTS','RAW_PRODUCT_ASSETS','RAW_CUSTOMERS'],
+  },
+  'MART_CHANNEL_REGION_PERFORMANCE': {
+    intermediate:['INT_CONTACT_SERVICE_LIFECYCLE'],
+    staging:['STG_CUSTOMER_CONTACTS','STG_CUSTOMERS'],
+    raw:['RAW_CUSTOMER_CONTACTS','RAW_CUSTOMERS'],
+  },
+  'MART_PRODUCT_ISSUE_TRENDS': {
+    intermediate:['INT_REPEAT_SERVICE_REQUESTS','INT_CONTACT_SERVICE_LIFECYCLE'],
+    staging:['STG_SERVICE_REQUESTS','STG_PRODUCT_ASSETS'],
+    raw:['RAW_SERVICE_REQUESTS','RAW_PRODUCT_ASSETS'],
+  },
+};
+
+/* ============================================================
+   State + chart registry
+============================================================ */
+const state = {region:'All', channel:'All', tab:'architecture', lineageMart:'MART_SERVICE_REQUEST_LIFECYCLE'};
+const charts = {};
+function destroyCharts(){ Object.values(charts).forEach(c=>c && c.destroy()); Object.keys(charts).forEach(k=>delete charts[k]); }
+
+/* ============================================================
+   Small render helpers
+============================================================ */
+function statusChip(status){
+  const map = {
+    pass:{c:'var(--good)', icon:'check', label:'Pass'},
+    success:{c:'var(--good)', icon:'check', label:'Success'},
+    warn:{c:'var(--warn)', icon:'alert', label:'Warn'},
+    warning:{c:'var(--warn)', icon:'alert', label:'Warn'},
+    fail:{c:'var(--bad)', icon:'x', label:'Fail'},
+  };
+  const m = map[status]||map.pass;
+  return `<span class="chip" style="color:${m.c};border-color:${m.c}">${svg(m.icon,11,m.c)}${m.label}</span>`;
+}
+function kpiCard(label,value,sub,icon,tone,trend){
+  return `<div class="kpi-card">
+    <div class="kpi-top"><span class="kpi-label">${label}</span>${svg(icon,15,'var(--text-dim)')}</div>
+    <div class="kpi-value" style="color:${tone||'var(--text)'}">${value}</div>
+    ${sub?`<div class="kpi-sub">${trend?svg(trend==='up'?'check':'alert',11,trend==='up'?'var(--good)':'var(--bad)'):''}<span>${sub}</span></div>`:''}
+  </div>`;
+}
+function panelOpen(eyebrow,title,rightHtml=''){
+  return `<div class="panel"><div class="panel-head"><div><div class="panel-eyebrow">${eyebrow}</div><div class="panel-title">${title}</div></div>${rightHtml}</div><div class="panel-body">`;
+}
+const panelClose = '</div></div>';
+
+/* ============================================================
+   Main render
+============================================================ */
+function render(){
+  const rows = filterMatrix(state.region, state.channel);
+  const scopeVolume = rows.reduce((a,r)=>a+r.volume,0);
+  const scopeRatio = scopeVolume / DATA.totalContacts;
+  const slaAdh = weightedAvg(rows,'slaPct');
+  const escRate = weightedAvg(rows,'escalationPct');
+  const repeatRate = weightedAvg(rows,'repeatPct');
+  const avgRepair = weightedAvg(rows,'avgRepairDays');
+  const warrantyUtilPct = (DATA.warrantyUtilization.active / DATA.totalContacts) * 100;
+  const stageVolumesScaled = DATA.stageVolumes.map(v=>Math.round(v*scopeRatio));
+
+  const tabs = [
+    {id:'architecture', label:'Architecture'},
+    {id:'sla', label:'SLA & repair'},
+    {id:'warranty', label:'Warranty'},
+    {id:'channel', label:'Channel & region'},
+    {id:'issues', label:'Product issues'},
+    {id:'monitor', label:'Pipeline monitoring'},
+  ];
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="cc-header">
+      <div>
+        <div class="cc-title display">Warranty ops <span>// command center</span></div>
+        <div class="cc-subtitle">Service request &amp; repair lifecycle — contact through case closure</div>
+      </div>
+      <div class="header-right">
+        <div class="cc-status"><span class="dot"></span>
+          <span class="cc-status-text">Pipeline health <b>99.1%</b> &nbsp;|&nbsp; last batch <b>04:12 UTC</b></span>
+        </div>
+        <button class="logout-btn" id="logoutBtn">Sign out</button>
+      </div>
+    </div>
+
+    <div class="filters">
+      ${svg('filter',13,'var(--text-dim)')}
+      <label>Region
+        <select id="regionSel">
+          <option ${state.region==='All'?'selected':''}>All</option>
+          ${REGIONS.map(r=>`<option ${state.region===r?'selected':''}>${r}</option>`).join('')}
+        </select>
+      </label>
+      <label>Channel
+        <select id="channelSel">
+          <option ${state.channel==='All'?'selected':''}>All</option>
+          ${CHANNELS.map(c=>`<option ${state.channel===c?'selected':''}>${c}</option>`).join('')}
+        </select>
+      </label>
+      <span class="scope-note">Scope: <b>${fmt(scopeVolume)}</b> contacts (${pct(scopeRatio*100,0)} of total)</span>
+    </div>
+
+    <div class="conveyor">
+      <div class="conveyor-label">${svg('gauge',13,'var(--text-dim)')} Lifecycle flow — customer contact to case closure</div>
+      <div class="conveyor-track">
+        ${STAGES.map((s,i)=>{
+          const v = stageVolumesScaled[i];
+          const prev = i>0 ? stageVolumesScaled[i-1] : null;
+          const drop = prev ? (((prev-v)/prev)*100).toFixed(1) : null;
+          return `<div class="stage-node">
+            ${i>0?'<div class="stage-connector"></div>':''}
+            <div class="stage-icon-wrap">${svg('phone',17,'var(--good)')}</div>
+            <div class="stage-vol">${fmt(v)}</div>
+            <div class="stage-name">${s.label}</div>
+            ${drop?`<div class="stage-drop">-${drop}%</div>`:''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      ${kpiCard('Service requests', fmt(scopeVolume), 'last 30 days', 'layers')}
+      ${kpiCard('SLA adherence', pct(slaAdh), slaAdh>85?'on target':'below target', 'clock', slaAdh>85?'var(--good)':'var(--warn)', slaAdh>85?'up':'down')}
+      ${kpiCard('Avg repair turnaround', avgRepair.toFixed(1)+'d', 'mail-in + onsite blended', 'wrench')}
+      ${kpiCard('Warranty utilization', pct(warrantyUtilPct), 'active entitlement coverage', 'shield')}
+      ${kpiCard('Escalation rate', pct(escRate), 'of total requests', 'alert', escRate>8?'var(--warn)':'var(--text)')}
+      ${kpiCard('Repeat requests', pct(repeatRate), 'same asset, 30-day window', 'refresh')}
+    </div>
+
+    <div class="tabbar">
+      ${tabs.map(t=>`<button class="tab-btn ${state.tab===t.id?'active':''}" data-tab="${t.id}">${t.label}</button>`).join('')}
+    </div>
+
+    <div id="tabContent"></div>
+
+    <div class="footnote" style="margin-top:18px;border-top:1px solid var(--border);padding-top:12px;">
+      ${svg('chevron',12,'var(--text-dim)')} Illustrative data generated to match the RAW → STAGING → INTERMEDIATE → MARTS schema in the source repository. Connect Snowflake MARTS views to replace with live figures.
+    </div>
+  `;
+
+  document.getElementById('regionSel').addEventListener('change', e=>{ state.region=e.target.value; render(); });
+  document.getElementById('channelSel').addEventListener('change', e=>{ state.channel=e.target.value; render(); });
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ state.tab=btn.dataset.tab; render(); });
+  });
+  document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+    try{ await fetch('/api/logout', {method:'POST'}); }catch(e){}
+    window.location.href = '/';
+  });
+
+  destroyCharts();
+  renderTab(rows);
+}
+
+/* ============================================================
+   Tab content renderer
+============================================================ */
+function renderTab(rows){
+  const el = document.getElementById('tabContent');
+
+  if(state.tab==='architecture'){
+    el.innerHTML = `
+      <div class="grid-2">
+        ${panelOpen('SOLUTION ARCHITECTURE','Fivetran-style ELT on Snowflake')}
+          <div class="arch-flow">
+            ${archStep('SOURCE', 'Google Drive JSON files', 'Customer, product, contact, warranty, service request, repair event and case closure records exported as JSON.', ['customers.json','service_requests.json','+5 more'])}
+            ${archStep('INGEST', 'Fivetran-style ELT connector', 'Scheduled extraction and load of source files into Snowflake with no in-flight transformation.', ['Fivetran-style','Batch load'])}
+            ${archStep('RAW', 'Raw landing tables', 'One-to-one copies of source JSON, schema-on-read, append-only history preserved.', ['Snowflake RAW schema'])}
+            ${archStep('STAGING', 'Cleansed &amp; typed views', 'Type casting, deduplication, null handling and column renaming — one staging model per source.', ['SQL views'])}
+            ${archStep('INTERMEDIATE', 'Business logic models', 'Joins across sources to build lifecycle, warranty validation, repair fulfillment and repeat-request logic.', ['SQL / CTEs'])}
+            ${archStep('MARTS', 'Analytics-ready tables', 'Six wide marts — service lifecycle, SLA adherence, repair turnaround, warranty utilization, channel/region, product issue trends.', ['MART_* tables'])}
+            ${archStep('CONSUME', 'BI &amp; command center', 'This dashboard and downstream BI tools query the marts layer directly.', ['This dashboard'])}
+            ${archStep('MONITOR', 'Monitoring &amp; data quality', 'Row count checks, PK/uniqueness checks, referential integrity and load audit run across every layer.', ['DQ framework','Load audit'], true)}
+          </div>
+        ${panelClose}
+
+        ${panelOpen('TABLE LINEAGE','Trace a mart back to its raw sources', `
+          <select id="lineageSel">
+            ${Object.keys(LINEAGE).map(m=>`<option ${state.lineageMart===m?'selected':''}>${m}</option>`).join('')}
+          </select>
+        `)}
+          <div id="lineageBody"></div>
+        ${panelClose}
+      </div>
+    `;
+    document.getElementById('lineageSel').addEventListener('change', e=>{ state.lineageMart=e.target.value; renderLineage(); });
+    renderLineage();
+    return;
+  }
+
+  if(state.tab==='sla'){
+    el.innerHTML = `
+      <div class="grid-2">
+        ${panelOpen('MART_SLA_ADHERENCE','SLA adherence by priority')}
+          <div style="width:100%;height:220px;"><canvas id="slaChart"></canvas></div>
+          <table class="data" style="margin-top:8px;">
+            <thead><tr><th>Priority</th><th>Target</th><th>Breaches</th></tr></thead>
+            <tbody>${DATA.slaByPriority.map(d=>`<tr>
+              <td style="font-family:'Inter';color:var(--text)">${d.priority}</td>
+              <td>${d.targetHrs}h</td>
+              <td style="color:${d.breaches>80?'var(--bad)':'var(--text-dim)'}">${d.breaches}</td>
+            </tr>`).join('')}</tbody>
+          </table>
+        ${panelClose}
+        ${panelOpen('MART_REPAIR_TURNAROUND_PERFORMANCE','Repair turnaround by warranty type')}
+          <table class="data">
+            <thead><tr><th>Warranty type</th><th>Avg days</th><th>Completion</th></tr></thead>
+            <tbody>${DATA.repairByWarranty.map(d=>`<tr>
+              <td style="font-family:'Inter';color:var(--text)">${d.type}</td>
+              <td>${d.avgDays.toFixed(1)}d</td>
+              <td style="color:var(--good)">${d.completionPct.toFixed(1)}%</td>
+            </tr>`).join('')}</tbody>
+          </table>
+          <div class="footnote">${svg('refresh',12,'var(--text-dim)')} Onsite repairs average ~4 days faster than mail-in across all regions.</div>
+        ${panelClose}
+      </div>
+    `;
+    charts.sla = new Chart(document.getElementById('slaChart'), {
+      type:'bar',
+      data:{ labels: DATA.slaByPriority.map(d=>d.priority),
+        datasets:[{ data: DATA.slaByPriority.map(d=>d.adherencePct.toFixed(1)),
+          backgroundColor: DATA.slaByPriority.map(d=>d.adherencePct>=85?'#4EC08F':'#E3A23C'), borderRadius:4 }]},
+      options: chartOpts({y:{max:100}, tooltipSuffix:'%'})
+    });
+    return;
+  }
+
+  if(state.tab==='warranty'){
+    const wu = DATA.warrantyUtilization;
+    el.innerHTML = `
+      <div class="grid-2">
+        ${panelOpen('MART_WARRANTY_UTILIZATION','Coverage status')}
+          <div style="width:100%;height:220px;display:flex;align-items:center;justify-content:center;"><canvas id="warrDonut"></canvas></div>
+          <div class="legend-row">
+            <span><span class="legend-dot" style="background:#4EC08F"></span>Active — ${fmt(wu.active)}</span>
+            <span><span class="legend-dot" style="background:#E3A23C"></span>Expired — ${fmt(wu.expired)}</span>
+            <span><span class="legend-dot" style="background:#3A453A"></span>None — ${fmt(wu.none)}</span>
+          </div>
+        ${panelClose}
+        ${panelOpen('INT_WARRANTY_VALIDATION','Service delivery mix')}
+          <div style="display:flex;align-items:center;gap:18px;">
+            <div style="flex:1;"><div class="kpi-label" style="margin-bottom:6px;">Mail-in</div><div class="kpi-value" style="font-size:26px;">${wu.mailInPct.toFixed(1)}%</div></div>
+            <div style="width:1px;height:40px;background:var(--border);"></div>
+            <div style="flex:1;"><div class="kpi-label" style="margin-bottom:6px;">Onsite</div><div class="kpi-value" style="font-size:26px;">${wu.onsitePct.toFixed(1)}%</div></div>
+          </div>
+          <div class="footnote">${svg('shield',12,'var(--text-dim)')} Onsite plans dominate volume in onsite-eligible regions; mail-in is the default fallback path.</div>
+        ${panelClose}
+      </div>
+    `;
+    charts.warrDonut = new Chart(document.getElementById('warrDonut'), {
+      type:'doughnut',
+      data:{ labels:['Active','Expired','None'], datasets:[{ data:[wu.active,wu.expired,wu.none], backgroundColor:['#4EC08F','#E3A23C','#3A453A'], borderWidth:0 }]},
+      options:{ plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmt(c.parsed)}`}}}, cutout:'62%' }
+    });
+    return;
+  }
+
+  if(state.tab==='channel'){
+    const byChannel = CHANNELS.map(c=>({name:c, volume: rows.filter(r=>r.channel===c).reduce((a,r)=>a+r.volume,0)})).filter(c=>c.volume>0);
+    const byRegion = REGIONS.map(r=>({name:r, volume: rows.filter(x=>x.region===r).reduce((a,x)=>a+x.volume,0)})).filter(r=>r.volume>0);
+    el.innerHTML = `
+      <div class="grid-2">
+        ${panelOpen('MART_CHANNEL_REGION_PERFORMANCE','Volume by channel')}
+          <div style="width:100%;height:200px;"><canvas id="chChart"></canvas></div>
+        ${panelClose}
+        ${panelOpen('MART_CHANNEL_REGION_PERFORMANCE','Volume by region')}
+          <div style="width:100%;height:200px;"><canvas id="rgChart"></canvas></div>
+        ${panelClose}
+        <div style="grid-column:1 / -1;">
+          ${panelOpen('MART_CHANNEL_REGION_PERFORMANCE','Region × channel breakdown')}
+            <table class="data">
+              <thead><tr><th>Region</th><th>Channel</th><th>Volume</th><th>SLA</th><th>Escalation</th></tr></thead>
+              <tbody>${rows.slice(0,16).map(r=>`<tr>
+                <td style="font-family:'Inter';color:var(--text)">${r.region}</td>
+                <td style="font-family:'Inter';color:var(--text-dim)">${r.channel}</td>
+                <td>${fmt(r.volume)}</td>
+                <td style="color:${r.slaPct>85?'var(--good)':'var(--warn)'}">${r.slaPct.toFixed(1)}%</td>
+                <td style="color:${r.escalationPct>8?'var(--warn)':'var(--text-dim)'}">${r.escalationPct.toFixed(1)}%</td>
+              </tr>`).join('')}</tbody>
+            </table>
+          ${panelClose}
+        </div>
+      </div>
+    `;
+    charts.ch = new Chart(document.getElementById('chChart'), {
+      type:'bar',
+      data:{ labels:byChannel.map(c=>c.name), datasets:[{ data:byChannel.map(c=>c.volume), backgroundColor:'#4EC08F', borderRadius:4 }]},
+      options: chartOpts({horizontal:true})
+    });
+    charts.rg = new Chart(document.getElementById('rgChart'), {
+      type:'bar',
+      data:{ labels:byRegion.map(r=>r.name), datasets:[{ data:byRegion.map(r=>r.volume), backgroundColor:'#6EA8DC', borderRadius:4 }]},
+      options: chartOpts({horizontal:true})
+    });
+    return;
+  }
+
+  if(state.tab==='issues'){
+    el.innerHTML = `
+      ${panelOpen('MART_PRODUCT_ISSUE_TRENDS','Issue category volume', `<span style="font-size:10.5px;color:var(--text-dim);">trend vs prior 30 days</span>`)}
+        <div style="width:100%;height:340px;"><canvas id="issueChart"></canvas></div>
+        <div class="legend-row">
+          <span><span class="legend-dot" style="background:#4EC08F"></span>Repeat rate under 14%</span>
+          <span><span class="legend-dot" style="background:#E3A23C"></span>Repeat rate 14%+ — watch list</span>
+        </div>
+      ${panelClose}
+    `;
+    charts.issues = new Chart(document.getElementById('issueChart'), {
+      type:'bar',
+      data:{ labels: DATA.issueTrends.map(d=>d.name),
+        datasets:[{ data: DATA.issueTrends.map(d=>d.volume),
+          backgroundColor: DATA.issueTrends.map(d=>d.repeatPct>14?'#E3A23C':'#4EC08F'), borderRadius:4 }]},
+      options: chartOpts({horizontal:true})
+    });
+    return;
+  }
+
+  if(state.tab==='monitor'){
+    const wh = DATA.warehouse;
+    const overallScore = DATA.dqChecks.reduce((a,c)=>a+c.score,0)/DATA.dqChecks.length;
+    const dims = {};
+    DATA.dqChecks.forEach(c=>{ if(!dims[c.dim]) dims[c.dim]=[]; dims[c.dim].push(c.score); });
+    const dimAvg = Object.entries(dims).map(([k,v])=>({dim:k, score:v.reduce((a,b)=>a+b,0)/v.length}));
+
+    el.innerHTML = `
+      <div class="grid-2">
+        ${panelOpen('DATA QUALITY SCORE','Composite score across all checks')}
+          <div class="dq-score-wrap">
+            <div class="gauge-box"><canvas id="dqGauge"></canvas>
+              <div class="gauge-center"><div class="gauge-score" style="color:${scoreColor(overallScore)}">${overallScore.toFixed(1)}</div><div class="gauge-label">/ 100</div></div>
+            </div>
+            <div class="dim-bars">
+              ${dimAvg.map(d=>`<div class="dim-row">
+                <div class="dim-top"><span>${d.dim}</span><span style="color:${scoreColor(d.score)}">${d.score.toFixed(1)}</span></div>
+                <div class="bar-track"><div class="bar-fill" style="width:${d.score}%;background:${scoreColor(d.score)}"></div></div>
+              </div>`).join('')}
+            </div>
+          </div>
+        ${panelClose}
+
+        ${panelOpen('VALIDATION CHECKS','Individual DQ rules')}
+          ${DATA.dqChecks.map(c=>`<div class="dq-row"><span>${c.name}</span>${statusChip(c.status)}</div>`).join('')}
+        ${panelClose}
+
+        <div style="grid-column:1 / -1;">
+          ${panelOpen('SNOWFLAKE WAREHOUSE METRICS','Compute &amp; performance')}
+            <div class="wh-grid">
+              ${kpiCard('Warehouse size', wh.size, 'auto-suspend '+wh.autoSuspendMin+'m', 'db')}
+              ${kpiCard('Credits — today', wh.creditsToday.toFixed(1), wh.creditsMTD.toFixed(0)+' MTD', 'gauge')}
+              ${kpiCard('Avg query time', wh.avgQueryMs+'ms', wh.queriesToday.toLocaleString()+' queries today', 'clock')}
+              ${kpiCard('Cache hit rate', wh.cacheHitPct.toFixed(1)+'%', wh.storageGB.toFixed(0)+' GB stored', 'layers')}
+            </div>
+            <div style="width:100%;height:160px;"><canvas id="creditChart"></canvas></div>
+            <div class="footnote">${svg('chevron',12,'var(--text-dim)')} Daily credit consumption, last 7 days</div>
+          ${panelClose}
+        </div>
+
+        <div style="grid-column:1 / -1;">
+          ${panelOpen('INCREMENTAL LOAD AUDIT','Source file batches')}
+            <table class="data">
+              <thead><tr><th>Source</th><th>Batch</th><th>Records</th><th>Status</th></tr></thead>
+              <tbody>${DATA.loadAudit.map(l=>`<tr>
+                <td style="color:var(--text)">${l.file}</td>
+                <td style="color:var(--text-dim)">${l.batch}</td>
+                <td>${fmt(l.records)}</td>
+                <td>${statusChip(l.status)}</td>
+              </tr>`).join('')}</tbody>
+            </table>
+          ${panelClose}
+        </div>
+      </div>
+    `;
+    charts.dqGauge = new Chart(document.getElementById('dqGauge'), {
+      type:'doughnut',
+      data:{ datasets:[{ data:[overallScore, 100-overallScore], backgroundColor:[scoreColor(overallScore),'#232B22'], borderWidth:0 }]},
+      options:{ plugins:{legend:{display:false}, tooltip:{enabled:false}}, cutout:'78%', rotation:-90, circumference:360 }
+    });
+    charts.credit = new Chart(document.getElementById('creditChart'), {
+      type:'bar',
+      data:{ labels:['D-6','D-5','D-4','D-3','D-2','D-1','Today'], datasets:[{ data: wh.creditTrend.map(v=>v.toFixed(1)), backgroundColor:'#6EA8DC', borderRadius:3 }]},
+      options: chartOpts({tooltipSuffix:' credits'})
+    });
+    return;
+  }
+}
+
+/* ============================================================
+   Architecture step + lineage renderers
+============================================================ */
+function archStep(tag,title,desc,tools,last){
+  return `<div class="arch-step">
+    <div class="rail"><div class="arch-dot"></div><div class="arch-line"></div></div>
+    <div class="arch-body">
+      <div class="arch-layer">${tag} — ${title}</div>
+      <div class="arch-desc">${desc}</div>
+      <div class="arch-tools">${tools.map(t=>`<span class="tool-tag">${t}</span>`).join('')}</div>
+    </div>
+  </div>`;
+}
+function renderLineage(){
+  const lin = LINEAGE[state.lineageMart];
+  const body = document.getElementById('lineageBody');
+  const cols = [
+    {label:'Raw', items:lin.raw},
+    {label:'Staging', items:lin.staging},
+    {label:'Intermediate', items:lin.intermediate},
+    {label:'Mart', items:[state.lineageMart]},
+  ];
+  body.innerHTML = `<div class="lineage-cols">
+    ${cols.map((col,ci)=>`<div class="lineage-col">
+      <div class="lineage-col-label">${col.label}</div>
+      ${col.items.map(item=>`<div class="lineage-node ${ci===cols.length-1?'hi':''}">${item}${ci<cols.length-1?`<span class="lineage-arrow">${svg('chevron',13,'var(--text-dim)')}</span>`:''}</div>`).join('')}
+    </div>`).join('')}
+  </div>
+  <div class="footnote">${svg('chevron',12,'var(--text-dim)')} Lineage inferred from the repository's layer naming conventions (RAW → STAGING → INTERMEDIATE → MARTS).</div>`;
+}
+
+/* ============================================================
+   Chart.js option helper
+============================================================ */
+function chartOpts({horizontal=false, y={}, tooltipSuffix=''}={}){
+  return {
+    indexAxis: horizontal ? 'y' : 'x',
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#1B2320', borderColor:'#303B34', borderWidth:1,
+      titleFont:{family:'IBM Plex Mono'}, bodyFont:{family:'IBM Plex Mono'},
+      callbacks:{ label:c => ` ${c.parsed[horizontal?'x':'y']}${tooltipSuffix}` } } },
+    scales:{
+      x:{ grid:{color:'#232B22', display:!horizontal}, ticks:{color:'#8B9682', font:{size:10}} },
+      y:{ grid:{color:'#232B22', display:horizontal}, ticks:{color:'#8B9682', font:{size:10}}, ...y },
+    }
+  };
+}
+function scoreColor(s){ return s>=95 ? '#4EC08F' : s>=85 ? '#E3A23C' : '#E2585B'; }
+
+/* ============================================================
+   Session guard — checks the httpOnly cookie via the serverless
+   /api/check function before showing the dashboard.
+============================================================ */
+(async function bootstrap(){
+  const gate = document.getElementById('authGate');
+  try{
+    const r = await fetch('/api/check');
+    if(!r.ok) throw new Error('not authenticated');
+    gate.style.display = 'none';
+    render();
+  }catch(e){
+    window.location.href = '/';
+  }
+})();
+</script>
+</body>
+</html>
